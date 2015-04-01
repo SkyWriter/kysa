@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -20,6 +21,12 @@ type Channel struct {
 	Name string
 	Url  string
 }
+
+type Channels []Channel
+
+func (a Channels) Len() int           { return len(a) }
+func (a Channels) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a Channels) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
 func getUrl(url string) string {
 	tr := &http.Transport{
@@ -41,9 +48,9 @@ func getUrl(url string) string {
 	return string(contents)
 }
 
-func parseChannels(s string) []Channel {
+func parseChannels(s string) Channels {
 	lines := strings.Split(s, "\n")
-	channels := make([]Channel, 0, len(lines)/2)
+	channels := make(Channels, 0, len(lines)/2)
 
 	name := ""
 	url := ""
@@ -88,7 +95,7 @@ func killProcessGroup(proc *os.Process) {
 
 }
 
-func makeLabels(channels []Channel) {
+func makeLabels(channels Channels) {
 	os.Mkdir("labels", 0755)
 	for _, channel := range channels {
 		filename := getLabelPath(channel, "gz")
@@ -119,7 +126,7 @@ func switchChannel(channel Channel) *os.Process {
 	exec.Command("/bin/sh", "-c", "clear > /dev/tty0").Output()
 	exec.Command("/bin/sh", "-c", "setterm -cursor off > /dev/tty0").Output()
 	exec.Command("/bin/sh", "-c",
-		fmt.Sprintf("cat %s > /dev/fb0",
+		fmt.Sprintf("zcat %s > /dev/fb0",
 			getLabelPath(channel, "gz"))).Output()
 
 	player := exec.Command("omxplayer", "-o", "hdmi", channel.Url)
@@ -138,11 +145,11 @@ func killChannel(proc *os.Process) {
 	exec.Command("/bin/sh", "-c", "setterm -cursor on > /dev/tty0")
 }
 
-var channels []Channel
+var channels Channels
 var currentChannel *Channel = nil
 var currentPlayerProcess *os.Process = nil
 
-func changeChannel(channels []Channel, no int) {
+func changeChannel(channels Channels, no int) {
 	if no >= len(channels) || no < 0 {
 		return
 	}
@@ -163,7 +170,13 @@ func changeChannelHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "ERROR")
 	} else {
 		changeChannel(channels, no)
-		fmt.Fprintf(w, "OK")
+		http.Redirect(w, r, "/", 301)
+	}
+}
+
+func channelDirectoryHandler(w http.ResponseWriter, r *http.Request) {
+	for idx, channel := range channels {
+		fmt.Fprintf(w, "<p><a href='/channel?no=%d'>%s</a></p>", idx, channel.Name)
 	}
 }
 
@@ -176,12 +189,14 @@ func main() {
 	fmt.Println("Welcome to MyTV\n")
 
 	channels = parseChannels(getUrl(os.Args[1]))
+	sort.Sort(channels)
 
 	fmt.Println("Making labels")
 	makeLabels(channels)
 
 	fmt.Println("Switching to the first channel")
 	changeChannel(channels, 0)
+	http.HandleFunc("/", channelDirectoryHandler)
 	http.HandleFunc("/channel", changeChannelHandler)
 
 	fmt.Println("Serving on :80")
