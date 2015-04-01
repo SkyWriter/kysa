@@ -146,7 +146,7 @@ func killChannel(proc *os.Process) {
 }
 
 var channels Channels
-var currentChannel *Channel = nil
+var currentChannelNo = 0
 var currentPlayerProcess *os.Process = nil
 
 func changeChannel(channels Channels, no int) {
@@ -159,8 +159,8 @@ func changeChannel(channels Channels, no int) {
 		currentPlayerProcess = nil
 	}
 
-	currentChannel = &channels[no]
-	currentPlayerProcess = switchChannel(*currentChannel)
+	currentChannelNo = no
+	currentPlayerProcess = switchChannel(channels[currentChannelNo])
 }
 
 func changeChannelHandler(w http.ResponseWriter, r *http.Request) {
@@ -175,9 +175,12 @@ func changeChannelHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func channelDirectoryHandler(w http.ResponseWriter, r *http.Request) {
+	channelsJson := make([]string, 0, len(channels))
 	for idx, channel := range channels {
-		fmt.Fprintf(w, "<p><a href='/channel?no=%d'>%s</a></p>", idx, channel.Name)
+		channelsJson = append(channelsJson, fmt.Sprintf("{ \"no\": %d, \"name\": \"%s\" }", idx, channel.Name))
 	}
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, "{ \"current\": %d, \"channels\": [ %s ] }", currentChannelNo, strings.Join(channelsJson, ", "))
 }
 
 func main() {
@@ -196,7 +199,12 @@ func main() {
 
 	fmt.Println("Switching to the first channel")
 	changeChannel(channels, 0)
-	http.HandleFunc("/", channelDirectoryHandler)
+
+	fmt.Println("Starting web server")
+
+	fs := http.FileServer(http.Dir("static"))
+	http.Handle("/", fs)
+	http.HandleFunc("/channels", channelDirectoryHandler)
 	http.HandleFunc("/channel", changeChannelHandler)
 
 	fmt.Println("Serving on :80")
