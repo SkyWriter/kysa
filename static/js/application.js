@@ -4,7 +4,7 @@ tvApp.controller('TvCtrl', function ($scope, $http) {
     $scope.currentChannel = 0;
 
     $scope.switchChannel = function (no) {
-        $http.get("/channel?no=" + no.toString());
+        $.post("/channel", { "no": no });
         $scope.query = "";
         $scope.currentChannel = no;
     }
