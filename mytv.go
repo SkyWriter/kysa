@@ -146,18 +146,23 @@ func killChannel(proc *os.Process) {
 }
 
 var channels Channels
-var currentChannelNo = 0
+var currentChannelNo = -1
 var currentPlayerProcess *os.Process = nil
+
+func turnOff() {
+	if currentPlayerProcess != nil {
+		killChannel(currentPlayerProcess)
+		currentPlayerProcess = nil
+	}
+	currentChannelNo = -1
+}
 
 func changeChannel(channels Channels, no int) {
 	if no >= len(channels) || no < 0 {
 		return
 	}
 
-	if currentPlayerProcess != nil {
-		killChannel(currentPlayerProcess)
-		currentPlayerProcess = nil
-	}
+	turnOff()
 
 	currentChannelNo = no
 	currentPlayerProcess = switchChannel(channels[currentChannelNo])
@@ -172,6 +177,12 @@ func changeChannelHandler(w http.ResponseWriter, r *http.Request) {
 		changeChannel(channels, no)
 		http.Redirect(w, r, "/", 301)
 	}
+}
+
+func turnoffHandler(w http.ResponseWriter, r *http.Request) {
+	turnOff()
+	fmt.Printf("Turning off\n")
+	http.Redirect(w, r, "/", 301)
 }
 
 func channelDirectoryHandler(w http.ResponseWriter, r *http.Request) {
@@ -197,15 +208,13 @@ func main() {
 	fmt.Println("Making labels")
 	makeLabels(channels)
 
-	fmt.Println("Switching to the first channel")
-	changeChannel(channels, 0)
-
 	fmt.Println("Starting web server")
 
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)
 	http.HandleFunc("/channels", channelDirectoryHandler)
 	http.HandleFunc("/channel", changeChannelHandler)
+	http.HandleFunc("/off", turnoffHandler)
 
 	fmt.Println("Serving on :80")
 	log.Fatal(http.ListenAndServe(":80", nil))

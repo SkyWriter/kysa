@@ -1,12 +1,17 @@
 var tvApp = angular.module('tvApp', []);
 
 tvApp.controller('TvCtrl', function ($scope, $http) {
-    $scope.currentChannel = 0;
+    $scope.currentChannel = -1;
 
     $scope.switchChannel = function (no) {
         $.post("/channel", { "no": no });
         $scope.query = "";
         $scope.currentChannel = no;
+    }
+
+    $scope.turnOff = function() {
+        $.post("/off");
+        $scope.currentChannel = -1;
     }
 
     $http.get("/channels").success(function (data) {
