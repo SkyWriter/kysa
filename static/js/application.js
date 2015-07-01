@@ -10,7 +10,7 @@ tvApp.controller('TvCtrl', function ($scope, $http) {
     }
 
     $scope.turnOff = function() {
-        $.post("/off");
+        $.post("/off", { "ios_please_dont_cache_me": Math.random() });
         $scope.currentChannel = -1;
     }
 
